@@ -7,7 +7,7 @@
 <title>LINE 對話紀錄閱讀器</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=LXGW+WenKai+TC:wght@400;700&family=Noto+Sans+TC:wght@400;500;700&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&display=swap">
 <style>
 /* Layout: fixed toolbar on top, one scrolling chat pane below; cool blue-grey chat ground, warm apricot for "my" bubbles */
 :root{
@@ -16,7 +16,7 @@
   --accent:#2f5d8a; --accent-ink:#ffffff; --mark:#ffd84d; --mark-ink:#1d2733;
   --sep:rgba(40,60,85,.14); --sep-ink:#3d4b5c; --chip:#eef2f7; --flash:#ffcf5c;
   --av-s:42%; --av-l:58%; --av-ink:#ffffff;
-  --f-display:"LXGW WenKai TC","Noto Sans TC","PingFang TC","Microsoft JhengHei",serif;
+  --f-display:"Noto Sans TC","PingFang TC","Microsoft JhengHei","Heiti TC",system-ui,sans-serif;
   --f-body:"Noto Sans TC","PingFang TC","Microsoft JhengHei","Heiti TC",system-ui,sans-serif;
 }
 @media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
@@ -84,7 +84,7 @@ button,input,select{font:inherit;color:inherit}
   background:hsl(var(--h) var(--av-s) var(--av-l));color:var(--av-ink)}
 .av.sp{visibility:hidden;height:0}
 .col{min-width:0;flex:1;display:flex;flex-direction:column;align-items:flex-start}
-.nm{font-size:.76rem;color:var(--muted);margin:0 0 2px 2px}
+.nm{font-family:var(--f-display);font-weight:500;font-size:.76rem;color:var(--muted);margin:0 0 2px 2px}
 .ln{display:flex;align-items:flex-end;gap:6px;max-width:min(78%,580px)}
 .me .col{align-items:flex-end}
 .me .ln{flex-direction:row-reverse}
