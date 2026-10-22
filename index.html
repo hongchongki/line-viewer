@@ -1,0 +1,394 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<style>:root{color-scheme:light;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0;font:14px system-ui,sans-serif}img{max-width:100%}[hidden]{display:none!important}</style>
+<title>LINE 對話紀錄閱讀器</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=LXGW+WenKai+TC:wght@400;700&family=Noto+Sans+TC:wght@400;500;700&display=swap">
+<style>
+/* Layout: fixed toolbar on top, one scrolling chat pane below; cool blue-grey chat ground, warm apricot for "my" bubbles */
+:root{
+  --chrome:#f6f8fb; --line:#d5dde7; --chat:#e2e9f1; --ink:#1d2733; --muted:#5d6b7b;
+  --other:#ffffff; --other-ink:#1d2733; --mine:#ffe0b5; --mine-ink:#3a2a14;
+  --accent:#2f5d8a; --accent-ink:#ffffff; --mark:#ffd84d; --mark-ink:#1d2733;
+  --sep:rgba(40,60,85,.14); --sep-ink:#3d4b5c; --chip:#eef2f7; --flash:#ffcf5c;
+  --av-s:42%; --av-l:58%; --av-ink:#ffffff;
+  --f-display:"LXGW WenKai TC","Noto Sans TC","PingFang TC","Microsoft JhengHei",serif;
+  --f-body:"Noto Sans TC","PingFang TC","Microsoft JhengHei","Heiti TC",system-ui,sans-serif;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --chrome:#121820; --line:#27313d; --chat:#0c1117; --ink:#e3e9f0; --muted:#93a1b1;
+  --other:#212b36; --other-ink:#e3e9f0; --mine:#5b4325; --mine-ink:#fbeedd;
+  --accent:#8db6e3; --accent-ink:#0c1117; --mark:#e0b62a; --mark-ink:#0c1117;
+  --sep:rgba(160,180,205,.16); --sep-ink:#c4cfdb; --chip:#1a222c; --flash:#a9821c;
+  --av-s:30%; --av-l:42%; --av-ink:#f1f4f8; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --chrome:#121820; --line:#27313d; --chat:#0c1117; --ink:#e3e9f0; --muted:#93a1b1;
+  --other:#212b36; --other-ink:#e3e9f0; --mine:#5b4325; --mine-ink:#fbeedd;
+  --accent:#8db6e3; --accent-ink:#0c1117; --mark:#e0b62a; --mark-ink:#0c1117;
+  --sep:rgba(160,180,205,.16); --sep-ink:#c4cfdb; --chip:#1a222c; --flash:#a9821c;
+  --av-s:30%; --av-l:42%; --av-ink:#f1f4f8; color-scheme:dark}
+
+html,body{height:100%}
+body{background:var(--chat);color:var(--ink);font-family:var(--f-body);font-size:15px;line-height:1.55;overflow:hidden}
+.app{height:100%;display:flex;flex-direction:column}
+button,input,select{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+.bar{background:var(--chrome);border-bottom:1px solid var(--line);padding-block:10px;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));
+  display:grid;grid-template-columns:minmax(0,1fr);gap:10px;flex:none;min-width:0}
+.app{width:100%;overflow:hidden}
+.top,.tools{min-width:0}
+.top{display:flex;align-items:center;gap:12px}
+.ttl{flex:1;min-width:0}
+.ttl h1{margin:0;font-family:var(--f-display);font-size:1.3rem;font-weight:700;line-height:1.25;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ttl p{margin:0;color:var(--muted);font-size:.82rem;font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.btn{border:1px solid var(--line);background:var(--chrome);border-radius:8px;padding:6px 12px;cursor:pointer;white-space:nowrap}
+.btn:hover{border-color:var(--accent)}
+.btn.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent);font-weight:500}
+.tools{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.search{flex:1 1 260px;min-width:0;display:flex;align-items:center;gap:4px;border:1px solid var(--line);border-radius:8px;background:var(--chat);padding:2px 4px 2px 10px}
+.search input{flex:1;min-width:0;border:0;background:transparent;padding:5px 0;outline:none}
+.search:focus-within{border-color:var(--accent)}
+.count{font-size:.8rem;color:var(--muted);font-variant-numeric:tabular-nums;white-space:nowrap}
+.ib{border:0;background:transparent;border-radius:6px;width:30px;height:30px;cursor:pointer;display:grid;place-items:center;color:var(--muted)}
+.ib:hover{background:var(--line);color:var(--ink)}
+.ib:disabled{opacity:.35;cursor:default;background:transparent}
+.field{display:flex;align-items:center;gap:6px;font-size:.85rem;color:var(--muted)}
+.field input,.field select{border:1px solid var(--line);border-radius:8px;background:var(--chat);padding:5px 8px;color:var(--ink);max-width:11rem;min-width:0}
+.field span{white-space:nowrap}
+
+.results{flex:none;max-height:38vh;overflow:auto;background:var(--chrome);border-bottom:1px solid var(--line);
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:6px}
+.hit{display:grid;grid-template-columns:auto 1fr;gap:2px 12px;width:100%;text-align:left;border:0;background:transparent;padding:7px 8px;border-radius:6px;cursor:pointer}
+.hit:hover,.hit.on{background:var(--chat)}
+.hit .d{font-size:.78rem;color:var(--muted);font-variant-numeric:tabular-nums;white-space:nowrap}
+.hit .s{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:.9rem}
+.hit .s b{font-weight:500}
+.more{color:var(--muted);font-size:.8rem;padding:6px 8px}
+
+.chat{flex:1;overflow-y:auto;overflow-x:hidden;padding-block:8px 40px;
+  padding-left:max(12px,env(safe-area-inset-left,0px));padding-right:max(12px,env(safe-area-inset-right,0px))}
+.wrap{max-width:820px;margin:0 auto}
+.day{content-visibility:auto;contain-intrinsic-size:auto 800px;padding-bottom:4px}
+.sep{position:sticky;top:6px;z-index:2;display:flex;justify-content:center;padding-block:10px 6px;pointer-events:none}
+.sep span{background:var(--sep);color:var(--sep-ink);font-size:.78rem;padding:3px 12px;border-radius:999px;font-variant-numeric:tabular-nums;backdrop-filter:blur(6px)}
+.sys{text-align:center;color:var(--muted);font-size:.8rem;padding:4px 20px;white-space:pre-wrap;overflow-wrap:anywhere}
+.row{display:flex;gap:8px;align-items:flex-start;margin-top:3px}
+.row.first{margin-top:12px}
+.av{flex:none;width:34px;height:34px;border-radius:50%;display:grid;place-items:center;font-size:.9rem;font-weight:500;
+  background:hsl(var(--h) var(--av-s) var(--av-l));color:var(--av-ink)}
+.av.sp{visibility:hidden;height:0}
+.col{min-width:0;flex:1;display:flex;flex-direction:column;align-items:flex-start}
+.nm{font-size:.76rem;color:var(--muted);margin:0 0 2px 2px}
+.ln{display:flex;align-items:flex-end;gap:6px;max-width:min(78%,580px)}
+.me .col{align-items:flex-end}
+.me .ln{flex-direction:row-reverse}
+.bub{background:var(--other);color:var(--other-ink);padding:7px 12px;border-radius:16px;white-space:pre-wrap;overflow-wrap:anywhere;min-width:0;box-shadow:0 1px 0 rgba(0,0,0,.05)}
+.me .bub{background:var(--mine);color:var(--mine-ink)}
+.first.them .bub{border-top-left-radius:5px}
+.first.me .bub{border-top-right-radius:5px}
+.bub.chip{background:var(--chip);color:var(--muted);font-size:.85rem;box-shadow:none;border:1px dashed var(--line)}
+.bub a{color:var(--accent);text-decoration:underline;text-underline-offset:2px}
+time{flex:none;font-size:.7rem;color:var(--muted);font-variant-numeric:tabular-nums;padding-bottom:2px}
+mark{background:var(--mark);color:var(--mark-ink);border-radius:3px;padding:0 1px}
+.row.flash .bub,.sys.flash{animation:fl 1.6s ease-out}
+@keyframes fl{0%,40%{box-shadow:0 0 0 3px var(--flash)}100%{box-shadow:0 0 0 3px transparent}}
+@media (prefers-reduced-motion:reduce){.row.flash .bub,.sys.flash{animation:none;box-shadow:0 0 0 3px var(--flash)}}
+
+.note{margin:12px auto 4px;max-width:560px;background:var(--chrome);border:1px solid var(--line);border-radius:12px;padding:12px 16px;font-size:.88rem;color:var(--muted)}
+.note strong{color:var(--ink);font-weight:500}
+.drop{position:fixed;inset:0;z-index:20;background:color-mix(in srgb,var(--chat) 85%,transparent);display:grid;place-items:center;pointer-events:none}
+.drop div{border:2px dashed var(--accent);border-radius:16px;padding:32px 40px;font-family:var(--f-display);font-size:1.3rem;background:var(--chrome)}
+.loading{text-align:center;color:var(--muted);padding:40px}
+
+@media (max-width:560px){
+  .tools{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:8px}
+  .search{grid-column:1/-1}
+  .field{min-width:0}
+  .field input,.field select{flex:1;width:100%;max-width:none;-webkit-appearance:none;appearance:none;min-height:36px}
+  .field select{background-image:none}
+  .search input,.field input,.field select{font-size:16px}
+  .btn{padding:6px 10px}
+  .ln{max-width:86%}
+  .av{width:30px;height:30px}
+}
+</style>
+</head>
+<body>
+
+<div class="app">
+  <header class="bar">
+    <div class="top">
+      <div class="ttl"><h1 id="title">範例對話</h1><p id="stats">—</p></div>
+      <button class="btn primary" id="openBtn" type="button">開啟 txt</button>
+      <input type="file" id="file" accept=".txt,text/plain" hidden>
+    </div>
+    <div class="tools">
+      <div class="search">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true" style="color:var(--muted);flex:none"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+        <input id="q" type="search" placeholder="搜尋訊息內容" autocomplete="off" aria-label="搜尋訊息內容">
+        <span class="count" id="count"></span>
+        <button class="ib" id="prev" type="button" title="較早一筆（Enter）" aria-label="較早一筆" disabled>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 15 6-6 6 6"/></svg></button>
+        <button class="ib" id="next" type="button" title="較新一筆（Shift+Enter）" aria-label="較新一筆" disabled>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg></button>
+        <button class="ib" id="listBtn" type="button" title="列出所有結果" aria-label="列出所有結果" aria-pressed="false" disabled>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg></button>
+      </div>
+      <label class="field"><span>日期</span><input type="date" id="date" aria-label="跳到日期"></label>
+      <label class="field"><span>我是</span><select id="me" aria-label="哪一位是我（顯示在右邊）"></select></label>
+    </div>
+  </header>
+  <div class="results" id="results" hidden></div>
+  <main class="chat" id="chat"><div class="wrap" id="wrap"></div></main>
+  <div class="drop" id="drop" hidden><div>放開以開啟 txt 檔</div></div>
+</div>
+
+<script>
+const SAMPLE = `[LINE] 與讀書會小組的聊天記錄
+儲存日期：2026/10/22 13:00
+
+2026/10/20（二）
+09:12	阿芬	大家早～這週讀書會改到週六下午可以嗎？
+09:15	志明	可以，圖書館二樓會議室我先登記
+09:16	阿芬	[貼圖]
+09:20	小林	我週六要帶小孩，可以一起去嗎
+09:21	志明	可以啊，旁邊就是兒童閱讀區
+09:21	志明	書單我整理好了
+這週讀第三章
+下週讀第四、五章
+09:40	小林	收到 👍
+13:02	阿芬	[照片]
+13:02	阿芬	這本書館內還有兩本可以借
+2026/10/21（三）
+08:30	志明	提醒：週六 14:00 會議室 B
+08:31	志明	報名表 https://example.com/form
+08:45	小林	已填
+10:05		阿芬已收回訊息
+10:06	阿芬	打錯字了 😅 我週六會晚十分鐘到
+10:10	志明	沒問題，先幫你留位子`;
+
+const $ = s => document.getElementById(s);
+const chat=$('chat'), wrap=$('wrap'), qIn=$('q');
+let msgs=[], days=[], title='', me='', isSample=true;
+let hits=[], cur=-1, query='';
+
+/* ---------- parsing ---------- */
+const MEDIA=/^\[(貼圖|照片|影片|檔案|語音訊息|位置資訊|聯絡資訊|記事本|相簿|禮物|Sticker|Photo|Video|File|Voice message|Location|Contact|Albums?|Note|スタンプ|写真|動画|ファイル)\]$/;
+const TIME=/^(上午|下午|午前|午後|AM|PM)?\s*(\d{1,2}):(\d{2})\s*(AM|PM)?\t(.*)$/i;
+const D1=/^(\d{4})[\/.\-](\d{1,2})[\/.\-](\d{1,2})/;
+const D2=/^(?:[A-Za-z]{3,9},?\s*)?(\d{1,2})\/(\d{1,2})\/(\d{4})/;
+const WD='日一二三四五六';
+function dateLine(line){
+  if(line.includes('\t')) return null;
+  let m=line.match(D1), y,mo,d;
+  if(m){y=+m[1];mo=+m[2];d=+m[3];}
+  else if((m=line.match(D2))){y=+m[3];mo=+m[1];d=+m[2]; if(mo>12){[mo,d]=[d,mo];}}
+  else return null;
+  const rest=line.slice(m[0].length).trim();
+  if(rest && !/^[（(]?\s*(週|星期|周)?\s*[日一二三四五六天月火水木金土]\s*(曜日?)?\s*[)）]?$|^[A-Za-z]{3,9}\.?$/.test(rest)) return null;
+  if(mo<1||mo>12||d<1||d>31) return null;
+  return {y,mo,d};
+}
+function pad(n){return String(n).padStart(2,'0')}
+function parse(text){
+  text=text.replace(/^﻿/,'').replace(/\r\n?/g,'\n');
+  const lines=text.split('\n');
+  const out=[], dayList=[]; let day=null, last=null, t='';
+  for(let i=0;i<lines.length;i++){
+    const line=lines[i];
+    if(i<5 && !day){
+      if(/^\[LINE\]/.test(line)){ t=line.replace(/^\[LINE\]\s*/,'').replace(/^(與|Chat history with |Chat history in |Chat in )/,'').replace(/(的聊天(記錄|紀錄|)|とのトーク履歴)$/,'').trim(); continue; }
+      if(/^(儲存日期|保存日時|Saved on)/.test(line)) continue;
+    }
+    const tm=line.match(TIME);
+    if(tm && day){
+      let h=+tm[2]; const ap=(tm[1]||tm[4]||'').toUpperCase();
+      if((ap==='下午'||ap==='PM'||ap==='午後')&&h<12) h+=12;
+      if((ap==='上午'||ap==='AM'||ap==='午前')&&h===12) h=0;
+      const parts=tm[5].split('\t');
+      let name='', body;
+      if(parts.length>=2){ name=parts[0].trim(); body=parts.slice(1).join('\t'); }
+      else body=parts[0];
+      last={day:day.key, time:pad(h)+':'+tm[3], name, text:body, sys:!name};
+      out.push(last); continue;
+    }
+    const dl=dateLine(line.trim());
+    if(dl){
+      const key=`${dl.y}-${pad(dl.mo)}-${pad(dl.d)}`;
+      const wd=WD[new Date(dl.y,dl.mo-1,dl.d).getDay()];
+      day={key,label:`${dl.y}/${pad(dl.mo)}/${pad(dl.d)}（${wd}）`,start:out.length};
+      dayList.push(day); last=null; continue;
+    }
+    if(last) last.text+='\n'+line;
+  }
+  for(const m of out){
+    m.text=m.text.replace(/\s+$/,'');
+    if(m.text.length>1 && m.text[0]==='"' && m.text.endsWith('"') && m.text.includes('\n'))
+      m.text=m.text.slice(1,-1).replace(/""/g,'"');
+    m.lc=m.text.toLowerCase();
+  }
+  return {msgs:out, days:dayList.filter((d,i)=>{const nx=dayList[i+1]; return (nx?nx.start:out.length)>d.start;}), title:t};
+}
+
+/* ---------- rendering ---------- */
+const esc=s=>s.replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+function hue(n){let h=0;for(const c of n)h=(h*31+c.codePointAt(0))%360;return h}
+function linkify(s){
+  return esc(s).replace(/https?:\/\/[^\s<]+[^\s<.,;:!?)\]）」』，。]/g,u=>`<a href="${u}" target="_blank" rel="noopener noreferrer">${u}</a>`);
+}
+function body(m){
+  if(!query) return linkify(m.text);
+  let out='', i=0, t=m.text, lc=m.lc, q=query, j;
+  while((j=lc.indexOf(q,i))!==-1){ out+=esc(t.slice(i,j))+'<mark>'+esc(t.slice(j,j+q.length))+'</mark>'; i=j+q.length; }
+  return out+esc(t.slice(i));
+}
+function msgHTML(m,i,prev){
+  if(m.sys) return `<div class="sys" id="m${i}">${body(m)}</div>`;
+  const mine=m.name===me;
+  const first=!prev||prev.sys||prev.name!==m.name;
+  const chip=MEDIA.test(m.text);
+  let av='';
+  if(!mine) av=first?`<div class="av" style="--h:${hue(m.name)}" aria-hidden="true">${esc([...m.name][0]||'?')}</div>`:'<div class="av sp"></div>';
+  return `<div class="row ${mine?'me':'them'}${first?' first':''}" id="m${i}">${av}<div class="col">${!mine&&first?`<div class="nm">${esc(m.name)}</div>`:''}<div class="ln"><div class="bub${chip?' chip':''}">${body(m)}</div><time>${m.time}</time></div></div></div>`;
+}
+function render(){
+  const parts=[];
+  if(isSample) parts.push(`<div class="note"><strong>這是範例對話。</strong>按右上「開啟 txt」，或把 LINE 匯出的 txt 檔直接拖進這個頁面。檔案只在你的瀏覽器裡讀取，不會上傳到任何地方。</div>`);
+  for(let d=0; d<days.length; d++){
+    const day=days[d], end=d+1<days.length?days[d+1].start:msgs.length;
+    let h=`<section class="day" data-day="${day.key}"><div class="sep"><span>${day.label}</span></div>`;
+    for(let i=day.start;i<end;i++) h+=msgHTML(msgs[i],i,i>day.start?msgs[i-1]:null);
+    parts.push(h+'</section>');
+  }
+  if(!msgs.length) parts.push('<div class="note">讀不到任何訊息。請確認這是從 LINE「傳送聊天記錄」匯出的 txt 檔。</div>');
+  wrap.innerHTML=parts.join('');
+}
+function setupHeader(){
+  $('title').textContent=title||(isSample?'範例對話':'LINE 對話');
+  const n=msgs.filter(m=>!m.sys).length;
+  const range=days.length?`${days[0].label.slice(0,10)} – ${days[days.length-1].label.slice(0,10)}`:'';
+  $('stats').textContent=(isSample?'範例 · ':'')+`${n.toLocaleString()} 則訊息 · ${days.length.toLocaleString()} 天`+(range?` · ${range}`:'');
+  const counts={}; for(const m of msgs) if(!m.sys) counts[m.name]=(counts[m.name]||0)+1;
+  const names=Object.keys(counts).sort((a,b)=>counts[b]-counts[a]);
+  const guess=names.find(x=>x!==title)||names[0]||'';
+  me=guess;
+  $('me').innerHTML=names.map(x=>`<option value="${esc(x)}"${x===me?' selected':''}>${esc(x)}（${counts[x].toLocaleString()}）</option>`).join('')+`<option value="">都不是（全部靠左）</option>`;
+  const di=$('date');
+  if(days.length){di.min=days[0].key; di.max=days[days.length-1].key; di.value='';}
+}
+function load(text){
+  wrap.innerHTML='<div class="loading">讀取中…</div>';
+  setTimeout(()=>{
+    const r=parse(text);
+    msgs=r.msgs; days=r.days; title=r.title;
+    setupHeader(); query=''; qIn.value=''; hits=[]; cur=-1; updateCount(); $('results').hidden=true; setListBtn(false);
+    render();
+    chat.scrollTop=isSample?0:chat.scrollHeight;
+  },20);
+}
+
+/* ---------- file input ---------- */
+async function readFile(f){
+  const buf=await f.arrayBuffer(); const b=new Uint8Array(buf);
+  let text;
+  if(b[0]===0xFF&&b[1]===0xFE) text=new TextDecoder('utf-16le').decode(buf);
+  else if(b[0]===0xFE&&b[1]===0xFF) text=new TextDecoder('utf-16be').decode(buf);
+  else { try{ text=new TextDecoder('utf-8',{fatal:true}).decode(buf);}catch(e){ text=new TextDecoder('big5').decode(buf);} }
+  isSample=false; load(text);
+}
+$('openBtn').onclick=()=>$('file').click();
+$('file').onchange=e=>{const f=e.target.files[0]; if(f) readFile(f); e.target.value='';};
+let dragDepth=0;
+addEventListener('dragenter',e=>{if(e.dataTransfer?.types?.includes('Files')){dragDepth++;$('drop').hidden=false;}});
+addEventListener('dragleave',()=>{if(--dragDepth<=0){dragDepth=0;$('drop').hidden=true;}});
+addEventListener('dragover',e=>e.preventDefault());
+addEventListener('drop',e=>{e.preventDefault();dragDepth=0;$('drop').hidden=true;const f=e.dataTransfer.files[0]; if(f) readFile(f);});
+
+/* ---------- me selector ---------- */
+$('me').onchange=e=>{
+  const r=chat.getBoundingClientRect();
+  const anchor=document.elementFromPoint(r.left+r.width/2,r.top+60)?.closest('[id^="m"]');
+  me=e.target.value; render();
+  if(anchor){const el=$(anchor.id); if(el) el.scrollIntoView({block:'start'}); chat.scrollTop-=60;}
+};
+
+/* ---------- search ---------- */
+function updateCount(){
+  $('count').textContent=query?(hits.length?`${cur+1} / ${hits.length.toLocaleString()}`:'找不到'):'';
+  $('prev').disabled=$('next').disabled=$('listBtn').disabled=!hits.length;
+}
+function refresh(i){
+  const el=$('m'+i); if(!el) return;
+  const t=el.classList.contains('sys')?el:el.querySelector('.bub'); t.innerHTML=body(msgs[i]);
+}
+function runSearch(){
+  const q=qIn.value.trim().toLowerCase();
+  if(q===query) return;
+  const old=hits; query=q; hits=[];
+  if(q) for(let i=0;i<msgs.length;i++) if(msgs[i].lc.includes(q)) hits.push(i);
+  for(const i of old) refresh(i);
+  for(const i of hits) refresh(i);
+  cur=-1; updateCount(); buildList();
+  if(hits.length) go(hits.length-1);
+}
+function go(k){
+  if(!hits.length) return;
+  cur=(k+hits.length)%hits.length; updateCount();
+  jumpTo(hits[cur]);
+  const rl=$('results'); rl.querySelectorAll('.hit.on').forEach(x=>x.classList.remove('on'));
+  const h=rl.querySelector(`[data-k="${cur}"]`); if(h){h.classList.add('on'); if(!rl.hidden) h.scrollIntoView({block:'nearest'});}
+}
+function jumpTo(i){
+  const el=$('m'+i); if(!el) return;
+  el.scrollIntoView({block:'center'});
+  requestAnimationFrame(()=>el.scrollIntoView({block:'center'}));
+  el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash');
+}
+const LIMIT=400;
+function buildList(){
+  const rl=$('results');
+  if(!hits.length){rl.innerHTML=''; rl.hidden=true; setListBtn(false); return;}
+  let h='';
+  const n=Math.min(hits.length,LIMIT);
+  for(let k=hits.length-1;k>=hits.length-n;k--){
+    const m=msgs[hits[k]], j=m.lc.indexOf(query);
+    const s=Math.max(0,j-18);
+    const snip=(s>0?'…':'')+m.text.slice(s,j+query.length+40).replace(/\n/g,' ');
+    const lo=snip.toLowerCase().indexOf(query);
+    const shtml=esc(snip.slice(0,lo))+'<mark>'+esc(snip.slice(lo,lo+query.length))+'</mark>'+esc(snip.slice(lo+query.length));
+    h+=`<button class="hit" type="button" data-k="${k}"><span class="d">${m.day.replace(/-/g,'/')} ${m.time}</span><span class="s">${m.name?`<b>${esc(m.name)}</b>：`:''}${shtml}</span></button>`;
+  }
+  if(hits.length>LIMIT) h+=`<div class="more">只列出最近的 ${LIMIT} 筆，用上下箭頭可逐筆看完全部 ${hits.length.toLocaleString()} 筆。</div>`;
+  rl.innerHTML=h;
+}
+function setListBtn(on){$('listBtn').setAttribute('aria-pressed',on);$('listBtn').style.color=on?'var(--accent)':'';}
+$('results').onclick=e=>{const b=e.target.closest('.hit'); if(b) go(+b.dataset.k);};
+$('listBtn').onclick=()=>{const rl=$('results'); rl.hidden=!rl.hidden; setListBtn(!rl.hidden);};
+let tmr; qIn.addEventListener('input',()=>{clearTimeout(tmr); tmr=setTimeout(runSearch,220);});
+qIn.addEventListener('keydown',e=>{
+  if(e.key==='Enter'){e.preventDefault(); clearTimeout(tmr);
+    const q=qIn.value.trim().toLowerCase();
+    if(q!==query){runSearch(); return;}
+    go(cur+(e.shiftKey?1:-1));}
+});
+$('prev').onclick=()=>go(cur-1);
+$('next').onclick=()=>go(cur+1);
+
+/* ---------- date jump ---------- */
+$('date').onchange=e=>{
+  const v=e.target.value; if(!v||!days.length) return;
+  let d=days.find(x=>x.key>=v)||days[days.length-1];
+  const sec=wrap.querySelector(`[data-day="${d.key}"]`);
+  if(sec){sec.scrollIntoView({block:'start'}); requestAnimationFrame(()=>sec.scrollIntoView({block:'start'}));}
+};
+
+load(SAMPLE);
+</script>
+</body>
+</html>
